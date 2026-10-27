@@ -1,0 +1,43 @@
+name: Build Lampa Transmission APK
+on:
+  workflow_dispatch:
+  push:
+    paths: ['android/**', 'apply.cjs', '.github/workflows/build-apk.yml']
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: lampa-app/LAMPA
+          ref: f6d9a9318a889b53edccd81fbe7050ec17dfd2ba
+          path: lampa-source
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Apply compatibility changes
+        run: node apply.cjs lampa-source
+      - name: Test session handshake and build separate APK
+        working-directory: lampa-source
+        run: |
+          chmod +x gradlew
+          ./gradlew :app:testLiteDebugUnitTest --tests top.rootu.lampa.net.TransmissionRpcTest --stacktrace
+          ./gradlew :app:assembleLiteDebug --stacktrace
+      - uses: actions/upload-artifact@v4
+        with:
+          name: lampa-transmission-apk
+          path: lampa-source/app/build/outputs/apk/lite/debug/*.apk
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: rpc-test-reports
+          path: lampa-source/app/build/reports/tests/
